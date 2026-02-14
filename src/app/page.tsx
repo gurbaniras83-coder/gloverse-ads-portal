@@ -1,6 +1,7 @@
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { WalletCard } from "@/components/WalletCard";
 import { CampaignList } from "@/components/CampaignList";
+import { ReachEstimator } from "@/components/ReachEstimator";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
@@ -14,6 +15,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-1 space-y-8">
             <WalletCard />
+            <ReachEstimator />
             <div className="bg-[#171717] p-6 rounded-xl border border-[#333333]">
               <h3 className="font-headline text-lg mb-4 text-primary">Quick Actions</h3>
               <Link href="/campaign/new">
