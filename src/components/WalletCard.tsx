@@ -1,7 +1,8 @@
+
 "use client";
 
-import { useState } from "react";
-import { Wallet, ArrowUpCircle, Info } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Wallet, ArrowUpCircle, Info, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -9,14 +10,26 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import Link from "next/link";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
 
 export function WalletCard() {
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState<number | null>(null);
 
-  const handleDeposit = () => {
-    // In a real app, this would open a payment gateway
-    setBalance(prev => prev + 500);
-  };
+  useEffect(() => {
+    // For MVP, we'll try to listen to a user profile or just set a default
+    // In a real app, this would be doc(db, 'users', auth.currentUser.uid)
+    const unsubscribe = onSnapshot(doc(db, "advertiser_stats", "current_user"), (doc) => {
+      if (doc.exists()) {
+        setBalance(doc.data().balance || 0);
+      } else {
+        setBalance(0);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="bg-[#171717] rounded-xl border border-[#333333] overflow-hidden gold-glow">
@@ -39,19 +52,26 @@ export function WalletCard() {
         </div>
         
         <div className="mb-6">
-          <span className="text-4xl font-headline font-bold text-white tracking-tighter">
-            ₹{balance.toLocaleString()}
-          </span>
-          <span className="text-white/40 ml-2 text-sm">INR</span>
+          {balance === null ? (
+            <Loader2 className="animate-spin text-primary" size={24} />
+          ) : (
+            <>
+              <span className="text-4xl font-headline font-bold text-white tracking-tighter">
+                ₹{balance.toLocaleString()}
+              </span>
+              <span className="text-white/40 ml-2 text-sm">INR</span>
+            </>
+          )}
         </div>
 
-        <Button 
-          onClick={handleDeposit}
-          className="w-full bg-[#333333] hover:bg-[#444444] text-white border border-primary/20 hover:border-primary/40 transition-all font-semibold py-6"
-        >
-          <ArrowUpCircle className="mr-2 text-primary" size={20} />
-          Deposit Money
-        </Button>
+        <Link href="/deposit">
+          <Button 
+            className="w-full bg-[#333333] hover:bg-[#444444] text-white border border-primary/20 hover:border-primary/40 transition-all font-semibold py-6"
+          >
+            <ArrowUpCircle className="mr-2 text-primary" size={20} />
+            Deposit Money
+          </Button>
+        </Link>
       </div>
       
       <div className="bg-[#222222] px-6 py-3 border-t border-[#333333]">

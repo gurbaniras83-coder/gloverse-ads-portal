@@ -1,8 +1,9 @@
+
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Script from "next/script";
 import { 
@@ -13,7 +14,8 @@ import {
   Loader2, 
   CheckCircle2,
   Upload,
-  PartyPopper
+  PartyPopper,
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +38,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Link from "next/link";
 
 declare global {
   interface Window {
@@ -50,6 +54,9 @@ export function AdCampaignForm() {
   const [budget, setBudget] = useState(80);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   
+  // Wallet Balance State
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+
   // Cloudinary States
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [publicId, setPublicId] = useState<string | null>(null);
@@ -59,6 +66,18 @@ export function AdCampaignForm() {
   // Reach Formula: 9 to 11 people per ₹1
   const estimatedMin = Math.floor(budget * 9);
   const estimatedMax = Math.floor(budget * 11);
+
+  // Fetch Wallet Balance
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, "advertiser_stats", "current_user"), (doc) => {
+      if (doc.exists()) {
+        setWalletBalance(doc.data().balance || 0);
+      } else {
+        setWalletBalance(0);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleOpenWidget = useCallback(() => {
     if (!window.cloudinary) return;
@@ -106,6 +125,16 @@ export function AdCampaignForm() {
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    
+    if (walletBalance !== null && walletBalance < budget) {
+      toast({
+        variant: "destructive",
+        title: "Insufficient Balance",
+        description: "Please deposit funds to your wallet to launch this campaign.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -149,6 +178,8 @@ export function AdCampaignForm() {
       setIsSubmitting(false);
     }
   }
+
+  const isInsufficientFunds = walletBalance !== null && walletBalance < budget;
 
   return (
     <>
@@ -311,6 +342,21 @@ export function AdCampaignForm() {
           </div>
         </div>
 
+        {isInsufficientFunds && (
+          <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle className="font-bold">Insufficient Funds</AlertTitle>
+            <AlertDescription className="flex items-center justify-between mt-2">
+              <span>Your balance (₹{walletBalance?.toLocaleString()}) is lower than your daily budget.</span>
+              <Link href="/deposit">
+                <Button size="sm" variant="destructive" className="bg-destructive text-white hover:bg-destructive/80 font-bold">
+                  Deposit Now
+                </Button>
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex flex-col sm:flex-row gap-4 justify-end pt-4">
           <Button 
             type="button" 
@@ -322,8 +368,11 @@ export function AdCampaignForm() {
           </Button>
           <Button 
             type="submit" 
-            disabled={isSubmitting || isUploading}
-            className="bg-primary hover:bg-primary/90 text-black font-bold px-12 py-6 rounded-lg text-lg flex items-center gap-3 shadow-lg shadow-primary/20"
+            disabled={isSubmitting || isUploading || isInsufficientFunds}
+            className={`
+              font-bold px-12 py-6 rounded-lg text-lg flex items-center gap-3 shadow-lg 
+              ${isInsufficientFunds ? 'bg-white/5 text-white/20 cursor-not-allowed shadow-none' : 'bg-primary hover:bg-primary/90 text-black shadow-primary/20'}
+            `}
           >
             {isSubmitting ? (
               <>
