@@ -8,13 +8,12 @@ import Script from "next/script";
 import { 
   Megaphone, 
   Link as LinkIcon, 
-  Video, 
   Layout, 
   Users, 
   Loader2, 
   CheckCircle2,
   Upload,
-  Play
+  PartyPopper
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +28,14 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 declare global {
   interface Window {
@@ -41,6 +48,7 @@ export function AdCampaignForm() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [budget, setBudget] = useState(80);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   
   // Cloudinary States
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -48,9 +56,9 @@ export function AdCampaignForm() {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Estimates: ₹80 = 700-900 views. 
-  const estimatedMin = Math.floor(budget * 8.75);
-  const estimatedMax = Math.floor(budget * 11.25);
+  // Reach Formula: 9 to 11 people per ₹1
+  const estimatedMin = Math.floor(budget * 9);
+  const estimatedMax = Math.floor(budget * 11);
 
   const handleOpenWidget = useCallback(() => {
     if (!window.cloudinary) return;
@@ -103,7 +111,7 @@ export function AdCampaignForm() {
     try {
       const formData = new FormData(event.currentTarget);
       const title = formData.get("title") as string;
-      const targetLink = formData.get("targetLink") as string;
+      const targetUrl = formData.get("targetUrl") as string;
       const placement = formData.get("placement") as string;
 
       if (!videoUrl) {
@@ -119,22 +127,17 @@ export function AdCampaignForm() {
       // Save to Firestore
       await addDoc(collection(db, "ad_campaigns"), {
         title,
-        targetLink,
+        targetUrl,
         videoUrl,
         publicId,
         placement,
         budget,
-        reachEstimate: { min: estimatedMin, max: estimatedMax },
+        estimatedReach: { min: estimatedMin, max: estimatedMax },
         status: "Pending",
         createdAt: serverTimestamp(),
       });
 
-      toast({
-        title: "Campaign Launched!",
-        description: "Your campaign is now pending review.",
-      });
-
-      router.push("/");
+      setShowSuccessModal(true);
     } catch (error) {
       console.error("Error creating campaign:", error);
       toast({
@@ -174,12 +177,12 @@ export function AdCampaignForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="targetLink" className="text-white/60">Target Link (URL)</Label>
+              <Label htmlFor="targetUrl" className="text-white/60">Target URL</Label>
               <div className="relative">
                 <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={16} />
                 <Input 
-                  id="targetLink" 
-                  name="targetLink" 
+                  id="targetUrl" 
+                  name="targetUrl" 
                   placeholder="https://gloverse.com/sale" 
                   type="url" 
                   required 
@@ -298,8 +301,8 @@ export function AdCampaignForm() {
               />
 
               <div className="bg-[#0F0F0F] p-4 rounded-lg border border-[#333333] text-center">
-                <p className="text-white/40 text-xs uppercase tracking-widest font-semibold mb-1">Estimated Reach</p>
-                <p className="text-2xl font-headline font-bold text-white">
+                <p className="text-white/40 text-[10px] uppercase tracking-widest font-semibold mb-1">Estimated Reach</p>
+                <p className="text-2xl font-headline font-bold gold-gradient-text">
                   {estimatedMin.toLocaleString()} - {estimatedMax.toLocaleString()}
                   <span className="text-sm font-normal text-white/40 ml-2">views</span>
                 </p>
@@ -336,6 +339,29 @@ export function AdCampaignForm() {
           </Button>
         </div>
       </form>
+
+      {/* Success Modal */}
+      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <DialogContent className="bg-[#171717] border-[#333333] text-white max-w-md">
+          <DialogHeader className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="bg-primary/20 p-4 rounded-full">
+              <PartyPopper className="text-primary" size={48} />
+            </div>
+            <DialogTitle className="text-2xl font-headline gold-gradient-text">Campaign Sent for Founder's Approval!</DialogTitle>
+            <DialogDescription className="text-white/60 text-base">
+              Your campaign has been successfully submitted and is currently in <span className="text-primary font-bold">Pending</span> review. You'll be notified once it goes live.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center mt-6">
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-black font-bold px-8" 
+              onClick={() => router.push("/")}
+            >
+              Go to Dashboard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
