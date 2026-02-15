@@ -13,14 +13,13 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const [handle, setHandle] = useState("");
-  const [password, setPassword] = useState("");
+  const [handleInput, setHandleInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if already logged in via handle session
     const session = localStorage.getItem("gloads_advertiser_session");
     if (session) {
       router.push("/deposit");
@@ -32,12 +31,32 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Clean handle: Remove '@' if present and convert to lowercase
-      const cleanHandle = handle.startsWith("@") ? handle.substring(1).toLowerCase() : handle.toLowerCase();
+      // 1. Trim spaces and normalize handle
+      const trimmedHandle = handleInput.trim();
+      const trimmedPassword = passwordInput.trim();
       
-      console.log("Searching for handle:", cleanHandle);
+      const cleanHandle = trimmedHandle.startsWith("@") 
+        ? trimmedHandle.substring(1).toLowerCase() 
+        : trimmedHandle.toLowerCase();
       
-      // Query 'channels' collection for matching handle
+      console.log("Attempting login for handle:", cleanHandle);
+
+      // 2. Founder Bypass Check
+      if (cleanHandle === "gloverse" && trimmedPassword === "waheguru786") {
+        console.log("Founder Bypass Triggered");
+        const founderSession = {
+          uid: "founder-admin",
+          handle: "gloverse",
+          email: "founder@gloverse.com",
+          displayName: "GloVerse Founder"
+        };
+        localStorage.setItem("gloads_advertiser_session", JSON.stringify(founderSession));
+        toast({ title: "Welcome back, Founder!", description: "Bypass login successful." });
+        router.push("/deposit");
+        return;
+      }
+
+      // 3. Regular Channel Check
       const q = query(
         collection(db, "channels"), 
         where("handle", "==", cleanHandle)
@@ -46,42 +65,41 @@ export default function LoginPage() {
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        console.log("Handle not found in 'channels' collection for search term:", cleanHandle);
-        throw new Error("Handle not found. Please contact support if you don't have an account.");
+        throw new Error(`Handle '${cleanHandle}' not found in GloVerse records.`);
       }
 
       const channelDoc = querySnapshot.docs[0];
       const channelData = channelDoc.data();
       
-      console.log("Channel document data found:", channelData);
+      // 4. Detailed Password Debugging
+      console.log('Input Password:', trimmedPassword);
+      console.log('Database Password:', channelData.password);
 
-      // Insecure plain-text comparison for prototype verification
-      if (channelData.password !== password) {
-        console.log("Password mismatch for handle:", cleanHandle);
-        throw new Error("Invalid password.");
+      if (channelData.password !== trimmedPassword) {
+        throw new Error("Invalid password. Please check your credentials.");
       }
 
-      // Store custom session
+      // 5. Success - Set Session
       const sessionData = {
         uid: channelDoc.id,
-        handle: channelData.handle, // This will be the clean version from DB
+        handle: channelData.handle || cleanHandle,
         email: channelData.email || "",
-        displayName: channelData.name || channelData.handle
+        displayName: channelData.name || channelData.handle || cleanHandle
       };
       
       localStorage.setItem("gloads_advertiser_session", JSON.stringify(sessionData));
 
       toast({
-        title: "Welcome back!",
-        description: `Successfully logged in as ${sessionData.handle}`,
+        title: "Login Successful",
+        description: `Logged in as @${sessionData.handle}`,
       });
       
       router.push("/deposit");
     } catch (error: any) {
-      console.error("Login Error:", error.message);
+      console.error("Login Error Details:", error.message);
       toast({
         variant: "destructive",
-        title: "Login Failed",
+        title: "Authentication Failed",
         description: error.message || "Something went wrong.",
       });
     } finally {
@@ -103,7 +121,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md bg-[#171717] border-[#333333] text-white shadow-2xl shadow-primary/5">
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-2xl font-headline gold-gradient-text">Advertiser Login</CardTitle>
-          <CardDescription className="text-white/40">Enter your GloVerse handle credentials.</CardDescription>
+          <CardDescription className="text-white/40">Enter your GloVerse handle and password.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">
@@ -115,8 +133,8 @@ export default function LoginPage() {
                   id="handle"
                   type="text"
                   placeholder="@yourhandle"
-                  value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
+                  value={handleInput}
+                  onChange={(e) => setHandleInput(e.target.value)}
                   required
                   className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12 pl-10"
                 />
@@ -125,14 +143,14 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-white/60">Password</Label>
-                <Link href="#" className="text-xs text-primary/60 hover:text-primary">Forgot password?</Link>
+                <Link href="#" className="text-xs text-primary/60 hover:text-primary">Help?</Link>
               </div>
               <Input
                 id="password"
                 type="password"
                 placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
                 required
                 className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12"
               />
@@ -154,15 +172,15 @@ export default function LoginPage() {
           
           <div className="mt-8 pt-6 border-t border-[#333333] text-center">
             <p className="text-white/40 text-sm">
-              New to GloAds? <Link href="#" className="text-primary hover:underline">Contact sales for an account</Link>
+              Secured access for authorized advertisers only.
             </p>
           </div>
         </CardContent>
       </Card>
       
       <p className="mt-8 text-white/20 text-xs text-center">
-        &copy; 2024 GloVerse Technologies • Secure Advertiser Access<br/>
-        Auth via GloVerse Handle System
+        &copy; 2024 GloVerse Technologies • Port: 9002<br/>
+        Founder Bypass Enabled
       </p>
     </div>
   );
