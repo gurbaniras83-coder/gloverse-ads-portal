@@ -10,9 +10,10 @@ import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, Info, Log
 import Link from "next/link";
 import QRCode from "react-qr-code";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { onAuthStateChanged } from "firebase/auth";
 
 interface AdvertiserSession {
   uid: string;
@@ -32,12 +33,30 @@ export default function DepositPage() {
   const upiUrl = `upi://pay?pa=${upiId}&pn=GloAds&cu=INR`;
 
   useEffect(() => {
+    // 1. Check local session from handle login
     const session = localStorage.getItem("gloads_advertiser_session");
     if (session) {
       setUser(JSON.parse(session));
+      setAuthLoading(false);
+    } else {
+      // 2. Fallback check for Firebase Auth
+      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        if (firebaseUser) {
+          setUser({
+            uid: firebaseUser.uid,
+            handle: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "advertiser",
+            email: firebaseUser.email || "",
+            displayName: firebaseUser.displayName || "Advertiser"
+          });
+        } else {
+          // No user at all? Redirect to login
+          router.push("/login");
+        }
+        setAuthLoading(false);
+      });
+      return () => unsubscribe();
     }
-    setAuthLoading(false);
-  }, []);
+  }, [router]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,6 +67,7 @@ export default function DepositPage() {
         title: "Authentication Required",
         description: "Please log in with your handle to submit a deposit.",
       });
+      router.push("/login");
       return;
     }
 
@@ -58,6 +78,7 @@ export default function DepositPage() {
     const utr = formData.get("utr") as string;
 
     try {
+      // Save strictly with advertiserId and advertiserHandle as requested
       await addDoc(collection(db, "payment_requests"), {
         amount,
         transactionId: utr,
@@ -65,7 +86,7 @@ export default function DepositPage() {
         upiId: upiId,
         advertiserId: user.uid,
         advertiserEmail: user.email,
-        advertiserName: user.handle,
+        advertiserHandle: user.handle,
         createdAt: serverTimestamp(),
       });
 
@@ -86,6 +107,14 @@ export default function DepositPage() {
     }
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={40} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white pb-12">
       <DashboardHeader />
@@ -98,24 +127,6 @@ export default function DepositPage() {
 
         <h1 className="font-headline text-3xl gold-gradient-text mb-2">Deposit Funds</h1>
         <p className="text-white/40 mb-8">Add money to your advertiser wallet to launch new campaigns.</p>
-
-        {!authLoading && !user && (
-          <Card className="bg-destructive/10 border-destructive/20 text-destructive border-dashed mb-8">
-            <CardContent className="pt-6 flex flex-col items-center gap-4">
-              <div className="flex items-center gap-3">
-                <LogIn className="h-5 w-5" />
-                <p className="font-bold">Login Required</p>
-              </div>
-              <p className="text-sm text-center opacity-80">Please log in with your GloVerse handle to verify payments and update your wallet balance.</p>
-              <Button asChild variant="destructive" size="sm" className="bg-destructive text-white hover:bg-destructive/80 font-bold">
-                <Link href="/login" className="flex items-center gap-2">
-                  <LogIn size={14} />
-                  Login with Handle
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
 
         {user && (
           <div className="mb-8 flex items-center justify-between bg-[#171717] p-4 rounded-xl border border-[#333333]">
@@ -135,48 +146,33 @@ export default function DepositPage() {
         )}
 
         <div className="grid grid-cols-1 gap-8">
-          {/* Step 1: Payment Info */}
           <Card className="bg-[#171717] border-[#333333] text-white overflow-hidden shadow-xl">
             <CardHeader className="bg-[#222222] border-b border-[#333333]">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <QrCode className="text-primary" size={20} />
                 Step 1: Scan & Pay
               </CardTitle>
-              <CardDescription className="text-white/40">Pay using any UPI app like GPay, PhonePe, or Paytm.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 flex flex-col items-center">
               <div className="bg-white p-4 rounded-xl mb-6 shadow-2xl shadow-white/5">
                 <QRCode value={upiUrl} size={180} />
               </div>
-              
-              <div className="text-center space-y-2 mb-8">
-                <p className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">Merchant UPI ID</p>
-                <p className="text-xl font-headline font-bold text-primary">{upiId}</p>
-              </div>
-
-              <div className="w-full flex flex-col gap-3">
-                <Button 
-                  asChild
-                  className="bg-primary hover:bg-primary/90 text-black font-bold w-full h-12 shadow-lg shadow-primary/20"
-                >
-                  <a href={upiUrl} className="flex items-center justify-center gap-2">
-                    <Smartphone size={18} />
-                    Open UPI App
-                  </a>
-                </Button>
-                <p className="text-[10px] text-white/30 text-center">Works on mobile devices with UPI apps installed.</p>
-              </div>
+              <p className="text-xl font-headline font-bold text-primary mb-8">{upiId}</p>
+              <Button asChild className="bg-primary hover:bg-primary/90 text-black font-bold w-full h-12">
+                <a href={upiUrl} className="flex items-center justify-center gap-2">
+                  <Smartphone size={18} />
+                  Open UPI App
+                </a>
+              </Button>
             </CardContent>
           </Card>
 
-          {/* Step 2: Verification */}
           <Card className="bg-[#171717] border-[#333333] text-white shadow-xl">
             <CardHeader className="bg-[#222222] border-b border-[#333333]">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <CheckCircle2 className="text-primary" size={20} />
                 Step 2: Verify Payment
               </CardTitle>
-              <CardDescription className="text-white/40">Enter your transaction details for approval.</CardDescription>
             </CardHeader>
             <CardContent className="p-8">
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -188,47 +184,26 @@ export default function DepositPage() {
                     type="number" 
                     placeholder="e.g. 500" 
                     required 
-                    disabled={!user}
-                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary disabled:opacity-50 h-12"
+                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12"
                   />
                 </div>
-
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="utr" className="text-white/60">Transaction ID (UTR)</Label>
-                    <div className="group relative">
-                      <Info size={14} className="text-white/20 cursor-help" />
-                      <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-black border border-[#333333] text-[10px] text-white/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-2xl">
-                        The 12-digit number from your transaction history.
-                      </div>
-                    </div>
-                  </div>
+                  <Label htmlFor="utr" className="text-white/60">Transaction ID (UTR)</Label>
                   <Input 
                     id="utr" 
                     name="utr" 
                     placeholder="12-digit UTR number" 
                     required 
-                    disabled={!user}
-                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary disabled:opacity-50 h-12"
+                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12"
                   />
                 </div>
-
                 <Button 
                   type="submit" 
-                  disabled={isSubmitting || !user}
-                  className="w-full bg-primary hover:bg-primary/90 text-black font-bold h-12 shadow-lg shadow-primary/10 disabled:bg-white/5 disabled:text-white/20"
+                  disabled={isSubmitting}
+                  className="w-full bg-primary hover:bg-primary/90 text-black font-bold h-12"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="animate-spin mr-2" size={18} />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={18} className="mr-2" />
-                      Submit Verification
-                    </>
-                  )}
+                  {isSubmitting ? <Loader2 className="animate-spin mr-2" size={18} /> : <Send size={18} className="mr-2" />}
+                  Submit Verification
                 </Button>
               </form>
             </CardContent>
