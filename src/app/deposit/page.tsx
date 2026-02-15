@@ -6,32 +6,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, Info, AlertCircle, LogIn } from "lucide-react";
+import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, Info, LogIn, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import QRCode from "react-qr-code";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { onAuthStateChanged, User } from "firebase/auth";
+
+interface AdvertiserSession {
+  uid: string;
+  handle: string;
+  email: string;
+  displayName: string;
+}
 
 export default function DepositPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AdvertiserSession | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   const upiId = "7681917331@fam";
   const upiUrl = `upi://pay?pa=${upiId}&pn=GloAds&cu=INR`;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
+    const session = localStorage.getItem("gloads_advertiser_session");
+    if (session) {
+      setUser(JSON.parse(session));
+    }
+    setAuthLoading(false);
   }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -41,7 +46,7 @@ export default function DepositPage() {
       toast({
         variant: "destructive",
         title: "Authentication Required",
-        description: "You must be logged in to submit a deposit request.",
+        description: "Please log in with your handle to submit a deposit.",
       });
       return;
     }
@@ -53,9 +58,6 @@ export default function DepositPage() {
     const utr = formData.get("utr") as string;
 
     try {
-      // Use email prefix as advertiserName handle
-      const advertiserName = user.displayName || user.email?.split('@')[0] || "Advertiser";
-
       await addDoc(collection(db, "payment_requests"), {
         amount,
         transactionId: utr,
@@ -63,7 +65,7 @@ export default function DepositPage() {
         upiId: upiId,
         advertiserId: user.uid,
         advertiserEmail: user.email,
-        advertiserName: advertiserName,
+        advertiserName: user.handle,
         createdAt: serverTimestamp(),
       });
 
@@ -98,34 +100,36 @@ export default function DepositPage() {
         <p className="text-white/40 mb-8">Add money to your advertiser wallet to launch new campaigns.</p>
 
         {!authLoading && !user && (
-          <Alert variant="destructive" className="mb-8 bg-destructive/10 border-destructive/20 text-destructive border-dashed">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle className="font-bold">Action Required</AlertTitle>
-            <AlertDescription className="flex flex-col gap-4 mt-2">
-              <p>Please log in to your account to verify payments and update your wallet balance.</p>
-              <Button asChild variant="destructive" size="sm" className="w-fit bg-destructive text-white hover:bg-destructive/80 font-bold">
+          <Card className="bg-destructive/10 border-destructive/20 text-destructive border-dashed mb-8">
+            <CardContent className="pt-6 flex flex-col items-center gap-4">
+              <div className="flex items-center gap-3">
+                <LogIn className="h-5 w-5" />
+                <p className="font-bold">Login Required</p>
+              </div>
+              <p className="text-sm text-center opacity-80">Please log in with your GloVerse handle to verify payments and update your wallet balance.</p>
+              <Button asChild variant="destructive" size="sm" className="bg-destructive text-white hover:bg-destructive/80 font-bold">
                 <Link href="/login" className="flex items-center gap-2">
                   <LogIn size={14} />
-                  Login to Portal
+                  Login with Handle
                 </Link>
               </Button>
-            </AlertDescription>
-          </Alert>
+            </CardContent>
+          </Card>
         )}
 
         {user && (
           <div className="mb-8 flex items-center justify-between bg-[#171717] p-4 rounded-xl border border-[#333333]">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                {user.email?.[0].toUpperCase()}
+                <UserIcon size={20} />
               </div>
               <div>
-                <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Active Advertiser</p>
-                <p className="text-sm font-medium">{user.email}</p>
+                <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Verified Advertiser</p>
+                <p className="text-sm font-medium">{user.handle}</p>
               </div>
             </div>
             <div className="bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/20 uppercase">
-              Authenticated
+              Connected
             </div>
           </div>
         )}
@@ -160,7 +164,7 @@ export default function DepositPage() {
                     Open UPI App
                   </a>
                 </Button>
-                <p className="text-[10px] text-white/30 text-center">Clicking "Open UPI App" works only on mobile devices.</p>
+                <p className="text-[10px] text-white/30 text-center">Works on mobile devices with UPI apps installed.</p>
               </div>
             </CardContent>
           </Card>
@@ -195,7 +199,7 @@ export default function DepositPage() {
                     <div className="group relative">
                       <Info size={14} className="text-white/20 cursor-help" />
                       <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-black border border-[#333333] text-[10px] text-white/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-2xl">
-                        The 12-digit number found in your UPI app's transaction history.
+                        The 12-digit number from your transaction history.
                       </div>
                     </div>
                   </div>
@@ -217,7 +221,7 @@ export default function DepositPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="animate-spin mr-2" size={18} />
-                      Submitting for Approval...
+                      Submitting...
                     </>
                   ) : (
                     <>

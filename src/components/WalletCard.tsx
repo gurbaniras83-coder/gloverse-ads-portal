@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,23 +11,30 @@ import {
 } from "@/components/ui/tooltip";
 import Link from "next/link";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 
 export function WalletCard() {
   const [balance, setBalance] = useState<number | null>(null);
+  const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
-    // For MVP, we'll try to listen to a user profile or just set a default
-    // In a real app, this would be doc(db, 'users', auth.currentUser.uid)
-    const unsubscribe = onSnapshot(doc(db, "advertiser_stats", "current_user"), (doc) => {
-      if (doc.exists()) {
-        setBalance(doc.data().balance || 0);
-      } else {
-        setBalance(0);
-      }
-    });
-
-    return () => unsubscribe();
+    const savedSession = localStorage.getItem("gloads_advertiser_session");
+    if (savedSession) {
+      const parsed = JSON.parse(savedSession);
+      setSession(parsed);
+      
+      // Listen to specific advertiser's stats
+      const unsubscribe = onSnapshot(doc(db, "advertiser_stats", parsed.uid), (doc) => {
+        if (doc.exists()) {
+          setBalance(doc.data().balance || 0);
+        } else {
+          setBalance(0);
+        }
+      });
+      return () => unsubscribe();
+    } else {
+      setBalance(0);
+    }
   }, []);
 
   return (

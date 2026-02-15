@@ -2,31 +2,29 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Megaphone, Loader2, ArrowRight } from "lucide-react";
+import { Megaphone, Loader2, ArrowRight, User as UserIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  // Redirect if already logged in
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        router.push("/deposit");
-      }
-    });
-    return () => unsubscribe();
+    // Check if already logged in via handle session
+    const session = localStorage.getItem("gloads_advertiser_session");
+    if (session) {
+      router.push("/deposit");
+    }
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -34,17 +32,50 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // Clean handle input (remove @ if present)
+      const cleanHandle = handle.startsWith("@") ? handle : `@${handle}`;
+      
+      // Query channels collection for matching handle
+      const q = query(
+        collection(db, "channels"), 
+        where("handle", "==", cleanHandle)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        throw new Error("Handle not found. Please contact support if you don't have an account.");
+      }
+
+      const channelDoc = querySnapshot.docs[0];
+      const channelData = channelDoc.data();
+
+      // Insecure plain-text comparison as requested for prototype
+      if (channelData.password !== password) {
+        throw new Error("Invalid password.");
+      }
+
+      // Store custom session
+      const sessionData = {
+        uid: channelDoc.id,
+        handle: channelData.handle,
+        email: channelData.email || "",
+        displayName: channelData.name || channelData.handle
+      };
+      
+      localStorage.setItem("gloads_advertiser_session", JSON.stringify(sessionData));
+
       toast({
         title: "Welcome back!",
-        description: "Successfully logged in to your advertiser portal.",
+        description: `Successfully logged in as ${sessionData.handle}`,
       });
+      
       router.push("/deposit");
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: error.message || "Invalid credentials.",
+        description: error.message || "Something went wrong.",
       });
     } finally {
       setLoading(false);
@@ -65,25 +96,28 @@ export default function LoginPage() {
       <Card className="w-full max-w-md bg-[#171717] border-[#333333] text-white shadow-2xl shadow-primary/5">
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-2xl font-headline gold-gradient-text">Advertiser Login</CardTitle>
-          <CardDescription className="text-white/40">Enter your GloVerse credentials to continue.</CardDescription>
+          <CardDescription className="text-white/40">Enter your GloVerse handle credentials.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-white/60">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="advertiser@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12"
-              />
+              <Label htmlFor="handle" className="text-white/60">GloVerse Handle</Label>
+              <div className="relative">
+                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                <Input
+                  id="handle"
+                  type="text"
+                  placeholder="@yourhandle"
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  required
+                  className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12 pl-10"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" university-hint="password" className="text-white/60">Password</Label>
+                <Label htmlFor="password" className="text-white/60">Password</Label>
                 <Link href="#" className="text-xs text-primary/60 hover:text-primary">Forgot password?</Link>
               </div>
               <Input
@@ -119,8 +153,9 @@ export default function LoginPage() {
         </CardContent>
       </Card>
       
-      <p className="mt-8 text-white/20 text-xs">
-        &copy; 2024 GloVerse Technologies • Secure Advertiser Access
+      <p className="mt-8 text-white/20 text-xs text-center">
+        &copy; 2024 GloVerse Technologies • Secure Advertiser Access<br/>
+        Auth via GloVerse Handle System
       </p>
     </div>
   );
