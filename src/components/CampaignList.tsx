@@ -21,7 +21,7 @@ type Campaign = {
   status: string;
   budget: number;
   placement: string;
-  targetLink: string;
+  targetUrl: string;
   createdAt: any;
 };
 
@@ -37,6 +37,9 @@ export function CampaignList() {
         ...doc.data()
       })) as Campaign[];
       setCampaigns(docs);
+      setLoading(false);
+    }, (error) => {
+      console.error("Firestore error:", error);
       setLoading(false);
     });
 
@@ -82,11 +85,13 @@ export function CampaignList() {
                 <div className="flex flex-col">
                   <span className="text-white font-semibold">{campaign.title}</span>
                   <span className="text-[10px] text-white/30 flex items-center gap-1 mt-1">
-                    {campaign.createdAt ? format(campaign.createdAt.toDate(), 'MMM dd, yyyy') : 'Just now'}
+                    {campaign.createdAt?.toDate ? format(campaign.createdAt.toDate(), 'MMM dd, yyyy') : 'Just now'}
                     <span className="mx-1">•</span>
-                    <a href={campaign.targetLink} target="_blank" className="hover:text-primary flex items-center gap-1">
-                      Link <ExternalLink size={10} />
-                    </a>
+                    {campaign.targetUrl && (
+                      <a href={campaign.targetUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary flex items-center gap-1">
+                        Link <ExternalLink size={10} />
+                      </a>
+                    )}
                   </span>
                 </div>
               </TableCell>
