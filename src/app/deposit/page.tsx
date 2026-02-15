@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, Info } from "lucide-react";
+import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, Info, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import QRCode from "react-qr-code";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function DepositPage() {
   const { toast } = useToast();
@@ -24,6 +25,17 @@ export default function DepositPage() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    
+    const user = auth.currentUser;
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Required",
+        description: "You must be logged in to submit a deposit request.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     const formData = new FormData(event.currentTarget);
@@ -36,6 +48,8 @@ export default function DepositPage() {
         transactionId: utr,
         status: "Pending",
         upiId: upiId,
+        advertiserId: user.uid,
+        advertiserEmail: user.email,
         createdAt: serverTimestamp(),
       });
 
@@ -44,17 +58,19 @@ export default function DepositPage() {
         description: "Your verification request has been sent for approval.",
       });
       router.push("/");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting deposit:", error);
       toast({
         variant: "destructive",
         title: "Submission Failed",
-        description: "Could not submit your request. Please try again.",
+        description: error.message || "Could not submit your request. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  const user = auth.currentUser;
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white pb-12">
@@ -68,6 +84,16 @@ export default function DepositPage() {
 
         <h1 className="font-headline text-3xl gold-gradient-text mb-2">Deposit Funds</h1>
         <p className="text-white/40 mb-8">Add money to your advertiser wallet to launch new campaigns.</p>
+
+        {!user && (
+          <Alert variant="destructive" className="mb-8 bg-destructive/10 border-destructive/20 text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Action Required</AlertTitle>
+            <AlertDescription>
+              Please log in to your account to verify payments and update your wallet balance.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid grid-cols-1 gap-8">
           {/* Step 1: Payment Info */}
@@ -123,7 +149,8 @@ export default function DepositPage() {
                     type="number" 
                     placeholder="e.g. 500" 
                     required 
-                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary"
+                    disabled={!user}
+                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary disabled:opacity-50"
                   />
                 </div>
 
@@ -142,14 +169,15 @@ export default function DepositPage() {
                     name="utr" 
                     placeholder="12-digit UTR number" 
                     required 
-                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary"
+                    disabled={!user}
+                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary disabled:opacity-50"
                   />
                 </div>
 
                 <Button 
                   type="submit" 
-                  disabled={isSubmitting}
-                  className="w-full bg-primary hover:bg-primary/90 text-black font-bold h-12 shadow-lg shadow-primary/10"
+                  disabled={isSubmitting || !user}
+                  className="w-full bg-primary hover:bg-primary/90 text-black font-bold h-12 shadow-lg shadow-primary/10 disabled:bg-white/5 disabled:text-white/20"
                 >
                   {isSubmitting ? (
                     <>
