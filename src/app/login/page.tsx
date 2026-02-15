@@ -32,10 +32,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Clean handle input (remove @ if present)
-      const cleanHandle = handle.startsWith("@") ? handle : `@${handle}`;
+      // Clean handle: Remove '@' if present and convert to lowercase
+      const cleanHandle = handle.startsWith("@") ? handle.substring(1).toLowerCase() : handle.toLowerCase();
       
-      // Query channels collection for matching handle
+      console.log("Searching for handle:", cleanHandle);
+      
+      // Query 'channels' collection for matching handle
       const q = query(
         collection(db, "channels"), 
         where("handle", "==", cleanHandle)
@@ -44,21 +46,25 @@ export default function LoginPage() {
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
+        console.log("Handle not found in 'channels' collection for search term:", cleanHandle);
         throw new Error("Handle not found. Please contact support if you don't have an account.");
       }
 
       const channelDoc = querySnapshot.docs[0];
       const channelData = channelDoc.data();
+      
+      console.log("Channel document data found:", channelData);
 
-      // Insecure plain-text comparison as requested for prototype
+      // Insecure plain-text comparison for prototype verification
       if (channelData.password !== password) {
+        console.log("Password mismatch for handle:", cleanHandle);
         throw new Error("Invalid password.");
       }
 
       // Store custom session
       const sessionData = {
         uid: channelDoc.id,
-        handle: channelData.handle,
+        handle: channelData.handle, // This will be the clean version from DB
         email: channelData.email || "",
         displayName: channelData.name || channelData.handle
       };
@@ -72,6 +78,7 @@ export default function LoginPage() {
       
       router.push("/deposit");
     } catch (error: any) {
+      console.error("Login Error:", error.message);
       toast({
         variant: "destructive",
         title: "Login Failed",
