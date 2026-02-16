@@ -49,9 +49,9 @@ export default function LoginPage() {
           displayName: "GloVerse Founder"
         };
       } else {
-        // 2. Regular Channel Check
+        // 2. Search in advertisers_data collection
         const q = query(
-          collection(db, "channels"), 
+          collection(db, "advertisers_data"), 
           where("handle", "==", cleanHandle)
         );
         
@@ -61,17 +61,17 @@ export default function LoginPage() {
           throw new Error(`Handle '${cleanHandle}' not found.`);
         }
 
-        const channelDoc = querySnapshot.docs[0];
-        const channelData = channelDoc.data();
+        const adDoc = querySnapshot.docs[0];
+        const adData = adDoc.data();
 
-        if (channelData.password !== trimmedPassword) {
+        if (adData.password !== trimmedPassword) {
           throw new Error("Invalid password.");
         }
 
         advertiserData = {
-          uid: channelDoc.id,
-          handle: channelData.handle || cleanHandle,
-          displayName: channelData.name || channelData.handle || cleanHandle
+          uid: adDoc.id,
+          handle: adData.handle || cleanHandle,
+          displayName: adData.name || adData.handle || cleanHandle
         };
       }
 
@@ -165,6 +165,15 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-white/40">
+              New Advertiser?{" "}
+              <Link href="/signup" className="text-primary hover:underline font-medium">
+                Sign Up here
+              </Link>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

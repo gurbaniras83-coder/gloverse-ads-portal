@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -56,6 +55,7 @@ export function AdCampaignForm() {
   
   // Wallet Balance State
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [advertiserId, setAdvertiserId] = useState<string | null>(null);
 
   // Cloudinary States
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -67,16 +67,22 @@ export function AdCampaignForm() {
   const estimatedMin = Math.floor(budget * 9);
   const estimatedMax = Math.floor(budget * 11);
 
-  // Fetch Wallet Balance
+  // Fetch Session & Wallet Balance
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, "advertiser_stats", "current_user"), (doc) => {
-      if (doc.exists()) {
-        setWalletBalance(doc.data().balance || 0);
-      } else {
-        setWalletBalance(0);
-      }
-    });
-    return () => unsubscribe();
+    const sessionStr = localStorage.getItem("gloads_advertiser_session");
+    if (sessionStr) {
+      const session = JSON.parse(sessionStr);
+      setAdvertiserId(session.uid);
+
+      const unsubscribe = onSnapshot(doc(db, "advertisers_data", session.uid), (doc) => {
+        if (doc.exists()) {
+          setWalletBalance(doc.data().walletBalance || 0);
+        } else {
+          setWalletBalance(0);
+        }
+      });
+      return () => unsubscribe();
+    }
   }, []);
 
   const handleOpenWidget = useCallback(() => {
@@ -135,6 +141,15 @@ export function AdCampaignForm() {
       return;
     }
 
+    if (!advertiserId) {
+      toast({
+        variant: "destructive",
+        title: "Session Error",
+        description: "Could not identify advertiser. Please re-login.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -161,6 +176,7 @@ export function AdCampaignForm() {
         publicId,
         placement,
         budget,
+        advertiserId,
         estimatedReach: { min: estimatedMin, max: estimatedMax },
         status: "Pending",
         createdAt: serverTimestamp(),

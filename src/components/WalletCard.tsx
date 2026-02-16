@@ -23,11 +23,12 @@ export function WalletCard() {
       const parsed = JSON.parse(savedSession);
       setSession(parsed);
       
-      // Listen to specific advertiser's stats
-      const unsubscribe = onSnapshot(doc(db, "advertiser_stats", parsed.uid), (doc) => {
+      // Listen to specific advertiser's data in the new collection
+      const unsubscribe = onSnapshot(doc(db, "advertisers_data", parsed.uid), (doc) => {
         if (doc.exists()) {
-          setBalance(doc.data().balance || 0);
+          setBalance(doc.data().walletBalance || 0);
         } else {
+          // Fallback to advertiser_stats if not in advertisers_data yet (legacy)
           setBalance(0);
         }
       });

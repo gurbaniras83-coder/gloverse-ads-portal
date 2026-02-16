@@ -21,12 +21,11 @@ import {
   updateDoc, 
   deleteDoc, 
   getDoc, 
-  setDoc, 
   increment 
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Loader2, IndianRupee, History } from "lucide-react";
+import { Check, X, Loader2, History } from "lucide-react";
 import { format } from "date-fns";
 
 export default function RevenuePage() {
@@ -66,20 +65,20 @@ export default function RevenuePage() {
         approvedAt: new Date(),
       });
 
-      // 2. Update advertiser balance
-      const statsRef = doc(db, "advertiser_stats", request.advertiserId);
-      const statsSnap = await getDoc(statsRef);
+      // 2. Update advertiser walletBalance in advertisers_data collection
+      const adRef = doc(db, "advertisers_data", request.advertiserId);
+      const adSnap = await getDoc(adRef);
 
-      if (statsSnap.exists()) {
-        await updateDoc(statsRef, {
-          balance: increment(request.amount),
-          totalDeposited: increment(request.amount),
+      if (adSnap.exists()) {
+        await updateDoc(adRef, {
+          walletBalance: increment(request.amount),
           updatedAt: new Date()
         });
       } else {
-        await setDoc(statsRef, {
-          balance: request.amount,
-          totalDeposited: request.amount,
+        // Fallback for legacy stats if user isn't in advertisers_data yet
+        const statsRef = doc(db, "advertiser_stats", request.advertiserId);
+        await updateDoc(statsRef, {
+          balance: increment(request.amount),
           updatedAt: new Date()
         });
       }
