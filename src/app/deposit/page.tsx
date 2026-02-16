@@ -5,8 +5,8 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, Info, LogIn, User as UserIcon } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import QRCode from "react-qr-code";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -15,57 +15,42 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 
-interface AdvertiserSession {
-  uid: string;
-  handle: string;
-  email: string;
-  displayName: string;
-}
-
 export default function DepositPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [user, setUser] = useState<AdvertiserSession | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [advertiserHandle, setAdvertiserHandle] = useState<string | null>(null);
 
   const upiId = "7681917331@fam";
   const upiUrl = `upi://pay?pa=${upiId}&pn=GloAds&cu=INR`;
 
   useEffect(() => {
-    // 1. Check local session from handle login
-    const session = localStorage.getItem("gloads_advertiser_session");
-    if (session) {
-      setUser(JSON.parse(session));
-      setAuthLoading(false);
-    } else {
-      // 2. Fallback check for Firebase Auth
-      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-        if (firebaseUser) {
-          setUser({
-            uid: firebaseUser.uid,
-            handle: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "advertiser",
-            email: firebaseUser.email || "",
-            displayName: firebaseUser.displayName || "Advertiser"
-          });
-        } else {
-          // No user at all? Redirect to login
-          router.push("/login");
-        }
-        setAuthLoading(false);
-      });
-      return () => unsubscribe();
-    }
-  }, [router]);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        toast({
+          variant: "destructive",
+          title: "Session Expired",
+          description: "Please log in again to continue.",
+        });
+        router.push("/login");
+      } else {
+        setAdvertiserHandle(user.displayName || "advertiser");
+        setIsLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [router, toast]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     
+    const user = auth.currentUser;
     if (!user) {
       toast({
         variant: "destructive",
         title: "Authentication Required",
-        description: "Please log in with your handle to submit a deposit.",
+        description: "Your session has expired. Please log in again.",
       });
       router.push("/login");
       return;
@@ -77,37 +62,49 @@ export default function DepositPage() {
     const amount = Number(formData.get("amount"));
     const utr = formData.get("utr") as string;
 
+    // Strict validation to prevent 'undefined' values
+    const advertiserId = user.uid;
+    const advertiserHandleValue = user.displayName || advertiserHandle || "Unknown";
+
+    if (!advertiserId || advertiserId === "undefined") {
+      toast({
+        variant: "destructive",
+        title: "Invalid Session",
+        description: "Could not identify advertiser. Please re-login.",
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      // Save strictly with advertiserId and advertiserHandle as requested
       await addDoc(collection(db, "payment_requests"), {
         amount,
         transactionId: utr,
         status: "Pending",
         upiId: upiId,
-        advertiserId: user.uid,
-        advertiserEmail: user.email,
-        advertiserHandle: user.handle,
+        advertiserId: advertiserId,
+        advertiserHandle: advertiserHandleValue,
+        advertiserEmail: user.email || "No Email",
         createdAt: serverTimestamp(),
       });
 
       toast({
         title: "Deposit Submitted",
-        description: "Your verification request has been sent for approval.",
+        description: "Payment verification sent for approval.",
       });
       router.push("/");
     } catch (error: any) {
-      console.error("Error submitting deposit:", error);
       toast({
         variant: "destructive",
         title: "Submission Failed",
-        description: error.message || "Could not submit your request. Please try again.",
+        description: error.message || "Could not submit your request.",
       });
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  if (authLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
         <Loader2 className="animate-spin text-primary" size={40} />
@@ -126,24 +123,22 @@ export default function DepositPage() {
         </Link>
 
         <h1 className="font-headline text-3xl gold-gradient-text mb-2">Deposit Funds</h1>
-        <p className="text-white/40 mb-8">Add money to your advertiser wallet to launch new campaigns.</p>
+        <p className="text-white/40 mb-8">Add money to your wallet via UPI and verify below.</p>
 
-        {user && (
-          <div className="mb-8 flex items-center justify-between bg-[#171717] p-4 rounded-xl border border-[#333333]">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                <UserIcon size={20} />
-              </div>
-              <div>
-                <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Verified Advertiser</p>
-                <p className="text-sm font-medium">{user.handle}</p>
-              </div>
+        <div className="mb-8 flex items-center justify-between bg-[#171717] p-4 rounded-xl border border-[#333333]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+              <UserIcon size={20} />
             </div>
-            <div className="bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/20 uppercase">
-              Connected
+            <div>
+              <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Authenticated Advertiser</p>
+              <p className="text-sm font-medium">@{advertiserHandle}</p>
             </div>
           </div>
-        )}
+          <div className="bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/20 uppercase">
+            Verified session
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 gap-8">
           <Card className="bg-[#171717] border-[#333333] text-white overflow-hidden shadow-xl">
@@ -154,7 +149,7 @@ export default function DepositPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 flex flex-col items-center">
-              <div className="bg-white p-4 rounded-xl mb-6 shadow-2xl shadow-white/5">
+              <div className="bg-white p-4 rounded-xl mb-6">
                 <QRCode value={upiUrl} size={180} />
               </div>
               <p className="text-xl font-headline font-bold text-primary mb-8">{upiId}</p>
@@ -184,7 +179,7 @@ export default function DepositPage() {
                     type="number" 
                     placeholder="e.g. 500" 
                     required 
-                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12"
+                    className="bg-[#0F0F0F] border-[#333333] text-white h-12"
                   />
                 </div>
                 <div className="space-y-2">
@@ -194,7 +189,7 @@ export default function DepositPage() {
                     name="utr" 
                     placeholder="12-digit UTR number" 
                     required 
-                    className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12"
+                    className="bg-[#0F0F0F] border-[#333333] text-white h-12"
                   />
                 </div>
                 <Button 

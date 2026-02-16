@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { signInAnonymously, updateProfile } from "firebase/auth";
+import { db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const session = localStorage.getItem("gloads_advertiser_session");
-    if (session) {
+    if (session && auth.currentUser) {
       router.push("/deposit");
     }
   }, [router]);
@@ -31,7 +32,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 1. Trim spaces and normalize handle
       const trimmedHandle = handleInput.trim();
       const trimmedPassword = passwordInput.trim();
       
@@ -39,64 +39,61 @@ export default function LoginPage() {
         ? trimmedHandle.substring(1).toLowerCase() 
         : trimmedHandle.toLowerCase();
       
-      console.log("Attempting login for handle:", cleanHandle);
+      let advertiserData = null;
 
-      // 2. Founder Bypass Check
+      // 1. Founder Bypass Check
       if (cleanHandle === "gloverse" && trimmedPassword === "waheguru786") {
-        console.log("Founder Bypass Triggered");
-        const founderSession = {
+        advertiserData = {
           uid: "founder-admin",
           handle: "gloverse",
-          email: "founder@gloverse.com",
           displayName: "GloVerse Founder"
         };
-        localStorage.setItem("gloads_advertiser_session", JSON.stringify(founderSession));
-        toast({ title: "Welcome back, Founder!", description: "Bypass login successful." });
-        router.push("/deposit");
-        return;
+      } else {
+        // 2. Regular Channel Check
+        const q = query(
+          collection(db, "channels"), 
+          where("handle", "==", cleanHandle)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          throw new Error(`Handle '${cleanHandle}' not found.`);
+        }
+
+        const channelDoc = querySnapshot.docs[0];
+        const channelData = channelDoc.data();
+
+        if (channelData.password !== trimmedPassword) {
+          throw new Error("Invalid password.");
+        }
+
+        advertiserData = {
+          uid: channelDoc.id,
+          handle: channelData.handle || cleanHandle,
+          displayName: channelData.name || channelData.handle || cleanHandle
+        };
       }
 
-      // 3. Regular Channel Check
-      const q = query(
-        collection(db, "channels"), 
-        where("handle", "==", cleanHandle)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        throw new Error(`Handle '${cleanHandle}' not found in GloVerse records.`);
-      }
+      // 3. Establish REAL Firebase Auth Session
+      const userCredential = await signInAnonymously(auth);
+      await updateProfile(userCredential.user, {
+        displayName: advertiserData.handle
+      });
 
-      const channelDoc = querySnapshot.docs[0];
-      const channelData = channelDoc.data();
-      
-      // 4. Detailed Password Debugging
-      console.log('Input Password:', trimmedPassword);
-      console.log('Database Password:', channelData.password);
-
-      if (channelData.password !== trimmedPassword) {
-        throw new Error("Invalid password. Please check your credentials.");
-      }
-
-      // 5. Success - Set Session
-      const sessionData = {
-        uid: channelDoc.id,
-        handle: channelData.handle || cleanHandle,
-        email: channelData.email || "",
-        displayName: channelData.name || channelData.handle || cleanHandle
-      };
-      
-      localStorage.setItem("gloads_advertiser_session", JSON.stringify(sessionData));
+      // 4. Save Session Metadata
+      localStorage.setItem("gloads_advertiser_session", JSON.stringify({
+        ...advertiserData,
+        firebaseUid: userCredential.user.uid
+      }));
 
       toast({
         title: "Login Successful",
-        description: `Logged in as @${sessionData.handle}`,
+        description: `Logged in as @${advertiserData.handle}`,
       });
       
       router.push("/deposit");
     } catch (error: any) {
-      console.error("Login Error Details:", error.message);
       toast({
         variant: "destructive",
         title: "Authentication Failed",
@@ -143,7 +140,6 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-white/60">Password</Label>
-                <Link href="#" className="text-xs text-primary/60 hover:text-primary">Help?</Link>
               </div>
               <Input
                 id="password"
@@ -169,19 +165,8 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-          
-          <div className="mt-8 pt-6 border-t border-[#333333] text-center">
-            <p className="text-white/40 text-sm">
-              Secured access for authorized advertisers only.
-            </p>
-          </div>
         </CardContent>
       </Card>
-      
-      <p className="mt-8 text-white/20 text-xs text-center">
-        &copy; 2024 GloVerse Technologies • Port: 9002<br/>
-        Founder Bypass Enabled
-      </p>
     </div>
   );
 }
