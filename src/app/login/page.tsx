@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Check if already logged in via localStorage and Firebase
     const session = localStorage.getItem("gloads_advertiser_session");
     if (session && auth.currentUser) {
       router.push("/deposit");
@@ -35,14 +37,18 @@ export default function LoginPage() {
       const trimmedHandle = handleInput.trim();
       const trimmedPassword = passwordInput.trim();
       
+      // Clean Handle: remove @ and lowercase
       const cleanHandle = trimmedHandle.startsWith("@") 
         ? trimmedHandle.substring(1).toLowerCase() 
         : trimmedHandle.toLowerCase();
+      
+      console.log('Attempting login for handle:', cleanHandle);
       
       let advertiserData = null;
 
       // 1. Founder Bypass Check
       if (cleanHandle === "gloverse" && trimmedPassword === "waheguru786") {
+        console.log('Founder bypass triggered');
         advertiserData = {
           uid: "founder-admin",
           handle: "gloverse",
@@ -58,14 +64,17 @@ export default function LoginPage() {
         const querySnapshot = await getDocs(q);
         
         if (querySnapshot.empty) {
-          throw new Error(`Handle '${cleanHandle}' not found.`);
+          throw new Error(`Handle '${cleanHandle}' not found in our records.`);
         }
 
         const adDoc = querySnapshot.docs[0];
         const adData = adDoc.data();
 
+        console.log('Input Password:', trimmedPassword);
+        console.log('DB Password:', adData.password);
+
         if (adData.password !== trimmedPassword) {
-          throw new Error("Invalid password.");
+          throw new Error("Invalid password. Please check and try again.");
         }
 
         advertiserData = {
@@ -75,29 +84,35 @@ export default function LoginPage() {
         };
       }
 
-      // 3. Establish REAL Firebase Auth Session
+      // 3. Establish REAL Firebase Auth Session (Anonymously to avoid Auth tab management)
       const userCredential = await signInAnonymously(auth);
+      
+      // Update Auth Profile so display name is available for payment requests
       await updateProfile(userCredential.user, {
         displayName: advertiserData.handle
       });
 
-      // 4. Save Session Metadata
-      localStorage.setItem("gloads_advertiser_session", JSON.stringify({
+      // 4. Save Session Metadata to localStorage for persistence
+      const sessionData = {
         ...advertiserData,
-        firebaseUid: userCredential.user.uid
-      }));
+        firebaseUid: userCredential.user.uid,
+        loggedInAt: new Date().toISOString()
+      };
+      
+      localStorage.setItem("gloads_advertiser_session", JSON.stringify(sessionData));
 
       toast({
         title: "Login Successful",
-        description: `Logged in as @${advertiserData.handle}`,
+        description: `Welcome back, @${advertiserData.handle}!`,
       });
       
       router.push("/deposit");
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         variant: "destructive",
         title: "Authentication Failed",
-        description: error.message || "Something went wrong.",
+        description: error.message || "Something went wrong during login.",
       });
     } finally {
       setLoading(false);

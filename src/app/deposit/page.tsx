@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -28,12 +29,20 @@ export default function DepositPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
-        toast({
-          variant: "destructive",
-          title: "Session Expired",
-          description: "Please log in again to continue.",
-        });
-        router.push("/login");
+        // Double check localStorage session
+        const sessionStr = localStorage.getItem("gloads_advertiser_session");
+        if (!sessionStr) {
+          toast({
+            variant: "destructive",
+            title: "Session Required",
+            description: "Please log in to deposit funds.",
+          });
+          router.push("/login");
+        } else {
+          const session = JSON.parse(sessionStr);
+          setAdvertiserHandle(session.handle);
+          setIsLoading(false);
+        }
       } else {
         setAdvertiserHandle(user.displayName || "advertiser");
         setIsLoading(false);
@@ -45,8 +54,11 @@ export default function DepositPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     
+    // 1. Get Session Data
     const user = auth.currentUser;
-    if (!user) {
+    const sessionStr = localStorage.getItem("gloads_advertiser_session");
+    
+    if (!sessionStr) {
       toast({
         variant: "destructive",
         title: "Authentication Required",
@@ -56,15 +68,17 @@ export default function DepositPage() {
       return;
     }
 
+    const session = JSON.parse(sessionStr);
     setIsSubmitting(true);
 
     const formData = new FormData(event.currentTarget);
     const amount = Number(formData.get("amount"));
     const utr = formData.get("utr") as string;
 
-    // Strict validation to prevent 'undefined' values
-    const advertiserId = user.uid;
-    const advertiserHandleValue = user.displayName || advertiserHandle || "Unknown";
+    // 2. Strict Data Validation
+    const advertiserId = session.uid;
+    const handleValue = session.handle || advertiserHandle || "Unknown";
+    const emailValue = session.email || user?.email || "No Email";
 
     if (!advertiserId || advertiserId === "undefined") {
       toast({
@@ -83,8 +97,8 @@ export default function DepositPage() {
         status: "Pending",
         upiId: upiId,
         advertiserId: advertiserId,
-        advertiserHandle: advertiserHandleValue,
-        advertiserEmail: user.email || "No Email",
+        advertiserHandle: handleValue,
+        advertiserEmail: emailValue,
         createdAt: serverTimestamp(),
       });
 
@@ -94,6 +108,7 @@ export default function DepositPage() {
       });
       router.push("/");
     } catch (error: any) {
+      console.error("Submission error:", error);
       toast({
         variant: "destructive",
         title: "Submission Failed",
