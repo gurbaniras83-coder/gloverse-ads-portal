@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, User as UserIcon } from "lucide-react";
+import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, User as UserIcon, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import QRCode from "react-qr-code";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -15,6 +15,7 @@ import { db, auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function DepositPage() {
   const { toast } = useToast();
@@ -22,29 +23,34 @@ export default function DepositPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [advertiserHandle, setAdvertiserHandle] = useState<string | null>(null);
+  const [advertiserId, setAdvertiserId] = useState<string | null>(null);
 
   const upiId = "7681917331@fam";
   const upiUrl = `upi://pay?pa=${upiId}&pn=GloAds&cu=INR`;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        // Double check localStorage session
-        const sessionStr = localStorage.getItem("gloads_advertiser_session");
-        if (!sessionStr) {
-          toast({
-            variant: "destructive",
-            title: "Session Required",
-            description: "Please log in to deposit funds.",
-          });
-          router.push("/login");
-        } else {
-          const session = JSON.parse(sessionStr);
-          setAdvertiserHandle(session.handle);
-          setIsLoading(false);
-        }
-      } else {
+      const sessionStr = localStorage.getItem("gloads_advertiser_session");
+      
+      if (!user && !sessionStr) {
+        toast({
+          variant: "destructive",
+          title: "Session Required",
+          description: "Please log in to deposit funds.",
+        });
+        router.push("/login");
+        return;
+      }
+
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        setAdvertiserHandle(session.handle);
+        setAdvertiserId(session.uid);
+        setIsLoading(false);
+      } else if (user) {
+        // Fallback for direct Firebase auth if session storage is cleared
         setAdvertiserHandle(user.displayName || "advertiser");
+        setAdvertiserId(user.uid);
         setIsLoading(false);
       }
     });
@@ -54,10 +60,8 @@ export default function DepositPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     
-    // 1. Get Session Data
-    const user = auth.currentUser;
+    // 1. Double check session for the latest data
     const sessionStr = localStorage.getItem("gloads_advertiser_session");
-    
     if (!sessionStr) {
       toast({
         variant: "destructive",
@@ -69,42 +73,45 @@ export default function DepositPage() {
     }
 
     const session = JSON.parse(sessionStr);
-    setIsSubmitting(true);
+    
+    // 2. Strict Data Capture
+    const finalAdvertiserId = session.uid;
+    const finalHandle = session.handle;
+    const finalName = session.displayName || session.name || "Unknown Business";
+    const finalEmail = session.email || "No Email Provided";
 
-    const formData = new FormData(event.currentTarget);
-    const amount = Number(formData.get("amount"));
-    const utr = formData.get("utr") as string;
-
-    // 2. Strict Data Validation
-    const advertiserId = session.uid;
-    const handleValue = session.handle || advertiserHandle || "Unknown";
-    const emailValue = session.email || user?.email || "No Email";
-
-    if (!advertiserId || advertiserId === "undefined") {
+    if (!finalAdvertiserId || finalAdvertiserId === "undefined") {
       toast({
         variant: "destructive",
         title: "Invalid Session",
-        description: "Could not identify advertiser. Please re-login.",
+        description: "Could not identify advertiser accurately. Please re-login.",
       });
-      setIsSubmitting(false);
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
+      const formData = new FormData(event.currentTarget);
+      const amount = Number(formData.get("amount"));
+      const utr = formData.get("utr") as string;
+
+      // 3. Firestore Save with explicit identity fields
       await addDoc(collection(db, "payment_requests"), {
         amount,
         transactionId: utr,
         status: "Pending",
         upiId: upiId,
-        advertiserId: advertiserId,
-        advertiserHandle: handleValue,
-        advertiserEmail: emailValue,
+        advertiserId: finalAdvertiserId,
+        advertiserHandle: finalHandle.startsWith("@") ? finalHandle : `@${finalHandle}`,
+        advertiserName: finalName,
+        advertiserEmail: finalEmail,
         createdAt: serverTimestamp(),
       });
 
       toast({
-        title: "Deposit Submitted",
-        description: "Payment verification sent for approval.",
+        title: "Verification Submitted",
+        description: "Your payment info has been sent for approval.",
       });
       router.push("/");
     } catch (error: any) {
@@ -127,6 +134,8 @@ export default function DepositPage() {
     );
   }
 
+  const isIdentified = !!advertiserId && !!advertiserHandle;
+
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white pb-12">
       <DashboardHeader />
@@ -140,6 +149,16 @@ export default function DepositPage() {
         <h1 className="font-headline text-3xl gold-gradient-text mb-2">Deposit Funds</h1>
         <p className="text-white/40 mb-8">Add money to your wallet via UPI and verify below.</p>
 
+        {!isIdentified && (
+          <Alert variant="destructive" className="mb-8 bg-destructive/10 border-destructive/20 text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Identification Required</AlertTitle>
+            <AlertDescription>
+              We cannot verify payments without an active session. Please <Link href="/login" className="font-bold underline">Login</Link> again.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="mb-8 flex items-center justify-between bg-[#171717] p-4 rounded-xl border border-[#333333]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
@@ -147,11 +166,11 @@ export default function DepositPage() {
             </div>
             <div>
               <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Authenticated Advertiser</p>
-              <p className="text-sm font-medium">@{advertiserHandle}</p>
+              <p className="text-sm font-medium">@{advertiserHandle?.replace('@', '')}</p>
             </div>
           </div>
           <div className="bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/20 uppercase">
-            Verified session
+            ID: {advertiserId?.substring(0, 8)}...
           </div>
         </div>
 
@@ -209,8 +228,8 @@ export default function DepositPage() {
                 </div>
                 <Button 
                   type="submit" 
-                  disabled={isSubmitting}
-                  className="w-full bg-primary hover:bg-primary/90 text-black font-bold h-12"
+                  disabled={isSubmitting || !isIdentified}
+                  className={`w-full font-bold h-12 ${!isIdentified ? 'bg-white/5 text-white/20' : 'bg-primary hover:bg-primary/90 text-black'}`}
                 >
                   {isSubmitting ? <Loader2 className="animate-spin mr-2" size={18} /> : <Send size={18} className="mr-2" />}
                   Submit Verification
