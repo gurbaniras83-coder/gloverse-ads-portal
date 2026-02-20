@@ -142,7 +142,7 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" colonial-className="text-white/60">Password</Label>
+              <Label htmlFor="password" className="text-white/60">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={16} />
                 <Input
