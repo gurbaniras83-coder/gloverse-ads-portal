@@ -1,13 +1,15 @@
 "use client";
 
-import { LayoutDashboard, Megaphone, Settings, User, LogOut } from "lucide-react";
+import { LayoutDashboard, Megaphone, Settings, LogOut, History } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 
 export function DashboardHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   const [handle, setHandle] = useState<string | null>(null);
 
@@ -27,6 +29,13 @@ export function DashboardHeader() {
     router.push("/login");
   }
 
+  const navLinks = [
+    { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { name: "Campaigns", href: "#", icon: Megaphone },
+    { name: "Payments", href: "/requests", icon: History },
+    { name: "Admin", href: "/revenue", icon: Settings },
+  ];
+
   return (
     <header className="border-b border-[#333333] bg-[#0F0F0F]/80 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -41,22 +50,27 @@ export function DashboardHeader() {
           </Link>
 
           <nav className="hidden md:flex items-center space-x-8">
-            <Link href="/" className="text-sm font-medium text-primary flex items-center gap-2">
-              <LayoutDashboard size={16} />
-              Dashboard
-            </Link>
-            <Link href="#" className="text-sm font-medium text-white/70 hover:text-white flex items-center gap-2">
-              <Megaphone size={16} />
-              Campaigns
-            </Link>
-            <Link href="/revenue" className="text-sm font-medium text-white/70 hover:text-white flex items-center gap-2">
-              <Settings size={16} />
-              Admin
-            </Link>
+            {navLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = pathname === link.href;
+              return (
+                <Link 
+                  key={link.name} 
+                  href={link.href} 
+                  className={cn(
+                    "text-sm font-medium transition-colors flex items-center gap-2",
+                    isActive ? "text-primary" : "text-white/70 hover:text-white"
+                  )}
+                >
+                  <Icon size={16} />
+                  {link.name}
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-[#171717] px-3 py-1.5 rounded-full border border-[#333333]">
+            <div className="hidden sm:flex items-center gap-2 bg-[#171717] px-3 py-1.5 rounded-full border border-[#333333]">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
               <span className="text-xs font-medium text-white/70">
                 {handle ? `@${handle}` : 'Advertiser Account'}
