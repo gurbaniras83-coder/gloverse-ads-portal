@@ -20,7 +20,7 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const session = localStorage.getItem("gloads_advertiser_session");
+    const session = localStorage.getItem("advertiser_session");
     if (session) {
       router.push("/deposit");
     }
@@ -64,7 +64,7 @@ export default function LoginPage() {
         const adDoc = querySnapshot.docs[0];
         const adData = adDoc.data();
 
-        // Manual Password Comparison
+        // 3. Manual Password Comparison
         if (adData.password !== trimmedPassword) {
           throw new Error("Incorrect Handle or Password");
         }
@@ -77,8 +77,8 @@ export default function LoginPage() {
         };
       }
 
-      // 3. Set Session in localStorage (No Firebase Auth calls)
-      localStorage.setItem("gloads_advertiser_session", JSON.stringify({
+      // 4. Set Session in localStorage
+      localStorage.setItem("advertiser_session", JSON.stringify({
         ...advertiserData,
         loggedInAt: new Date().toISOString()
       }));
@@ -88,10 +88,9 @@ export default function LoginPage() {
         description: `Welcome, ${advertiserData.businessName}!`,
       });
       
-      // 4. Redirect immediately
+      // 5. Redirect immediately
       router.push("/deposit");
     } catch (error: any) {
-      console.error('Login error:', error);
       toast({
         variant: "destructive",
         title: "Authentication Failed",

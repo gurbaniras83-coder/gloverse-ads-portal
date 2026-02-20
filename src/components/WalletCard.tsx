@@ -17,10 +17,15 @@ export function WalletCard() {
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
-    const savedSession = localStorage.getItem("gloads_advertiser_session");
+    const savedSession = localStorage.getItem("advertiser_session");
     if (savedSession) {
       const parsed = JSON.parse(savedSession);
       
+      if (parsed.uid === "founder-admin") {
+        setBalance(999999);
+        return;
+      }
+
       // Listen to specific advertiser's data in advertisers_accounts
       const unsubscribe = onSnapshot(doc(db, "advertisers_accounts", parsed.uid), (doc) => {
         if (doc.exists()) {

@@ -10,10 +10,9 @@ import { ChevronLeft, QrCode, Smartphone, Send, CheckCircle2, Loader2, User as U
 import Link from "next/link";
 import QRCode from "react-qr-code";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function DepositPage() {
@@ -27,23 +26,20 @@ export default function DepositPage() {
   const upiUrl = `upi://pay?pa=${upiId}&pn=GloAds&cu=INR`;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      const sessionStr = localStorage.getItem("gloads_advertiser_session");
-      
-      if (!sessionStr) {
-        toast({
-          variant: "destructive",
-          title: "Session Required",
-          description: "Please log in to deposit funds.",
-        });
-        router.push("/login");
-        return;
-      }
+    const sessionStr = localStorage.getItem("advertiser_session");
+    
+    if (!sessionStr) {
+      toast({
+        variant: "destructive",
+        title: "Session Required",
+        description: "Please log in to deposit funds.",
+      });
+      router.push("/login");
+      return;
+    }
 
-      setSession(JSON.parse(sessionStr));
-      setIsLoading(false);
-    });
-    return () => unsubscribe();
+    setSession(JSON.parse(sessionStr));
+    setIsLoading(false);
   }, [router, toast]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -66,7 +62,7 @@ export default function DepositPage() {
       const amount = Number(formData.get("amount"));
       const utr = formData.get("utr") as string;
 
-      // Firestore Save with STRICT Identity pulling from session
+      // Firestore Save with identity pulling from session
       await addDoc(collection(db, "payment_requests"), {
         amount,
         transactionId: utr,
@@ -85,7 +81,6 @@ export default function DepositPage() {
       });
       router.push("/");
     } catch (error: any) {
-      console.error("Submission error:", error);
       toast({
         variant: "destructive",
         title: "Submission Failed",

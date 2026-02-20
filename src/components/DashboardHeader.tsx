@@ -3,8 +3,6 @@
 import { LayoutDashboard, Megaphone, Settings, User, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
-import { signOut } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 
@@ -14,24 +12,19 @@ export function DashboardHeader() {
   const [handle, setHandle] = useState<string | null>(null);
 
   useEffect(() => {
-    const session = localStorage.getItem("gloads_advertiser_session");
+    const session = localStorage.getItem("advertiser_session");
     if (session) {
       setHandle(JSON.parse(session).handle);
     }
   }, []);
 
   async function handleLogout() {
-    try {
-      await signOut(auth);
-      localStorage.removeItem("gloads_advertiser_session");
-      toast({
-        title: "Logged Out",
-        description: "You have been successfully signed out.",
-      });
-      router.push("/login");
-    } catch (error) {
-      console.error("Logout error", error);
-    }
+    localStorage.removeItem("advertiser_session");
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully signed out.",
+    });
+    router.push("/login");
   }
 
   return (

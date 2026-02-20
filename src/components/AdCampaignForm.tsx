@@ -69,13 +69,13 @@ export function AdCampaignForm() {
 
   // Fetch Session & Wallet Balance from advertisers_accounts
   useEffect(() => {
-    const sessionStr = localStorage.getItem("gloads_advertiser_session");
+    const sessionStr = localStorage.getItem("advertiser_session");
     if (sessionStr) {
       const session = JSON.parse(sessionStr);
       setAdvertiserId(session.uid);
 
       if (session.uid === "founder-admin") {
-        setWalletBalance(999999); // Founder has unlimited balance
+        setWalletBalance(999999);
         return;
       }
 
@@ -189,7 +189,6 @@ export function AdCampaignForm() {
 
       setShowSuccessModal(true);
     } catch (error) {
-      console.error("Error creating campaign:", error);
       toast({
         variant: "destructive",
         title: "Submission Failed",
