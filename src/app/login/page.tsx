@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { signInAnonymously, updateProfile } from "firebase/auth";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,7 +49,7 @@ export default function LoginPage() {
           email: "admin@gloverse.com"
         };
       } else {
-        // 2. Search in advertisers_accounts collection
+        // 2. Search ONLY in advertisers_accounts collection
         const q = query(
           collection(db, "advertisers_accounts"), 
           where("handle", "==", cleanHandle)
@@ -59,18 +58,15 @@ export default function LoginPage() {
         const querySnapshot = await getDocs(q);
         
         if (querySnapshot.empty) {
-          throw new Error(`Handle '@${cleanHandle}' not found.`);
+          throw new Error("Incorrect Handle or Password");
         }
 
         const adDoc = querySnapshot.docs[0];
         const adData = adDoc.data();
 
-        // Debug Logs
-        console.log('Input:', trimmedPassword);
-        console.log('DB:', adData.password);
-
+        // Manual Password Comparison
         if (adData.password !== trimmedPassword) {
-          throw new Error("Invalid password. Please try again.");
+          throw new Error("Incorrect Handle or Password");
         }
 
         advertiserData = {
@@ -81,16 +77,9 @@ export default function LoginPage() {
         };
       }
 
-      // 3. Firebase Auth for secure identification (Anonymous)
-      const userCredential = await signInAnonymously(auth);
-      await updateProfile(userCredential.user, {
-        displayName: advertiserData.handle
-      });
-
-      // 4. Persistence Session
+      // 3. Set Session in localStorage (No Firebase Auth calls)
       localStorage.setItem("gloads_advertiser_session", JSON.stringify({
         ...advertiserData,
-        firebaseUid: userCredential.user.uid,
         loggedInAt: new Date().toISOString()
       }));
 
@@ -99,6 +88,7 @@ export default function LoginPage() {
         description: `Welcome, ${advertiserData.businessName}!`,
       });
       
+      // 4. Redirect immediately
       router.push("/deposit");
     } catch (error: any) {
       console.error('Login error:', error);
