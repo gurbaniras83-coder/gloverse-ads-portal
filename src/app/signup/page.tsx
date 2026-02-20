@@ -8,14 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Megaphone, Loader2, ArrowRight, User as UserIcon, Mail, Phone, Lock } from "lucide-react";
+import { Megaphone, Loader2, ArrowRight, User as UserIcon, Mail, Phone, Lock, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
     handle: "",
-    name: "",
+    fullName: "",
+    businessName: "",
     email: "",
     phone: "",
     password: "",
@@ -39,9 +40,9 @@ export default function SignupPage() {
         ? trimmedHandle.substring(1).toLowerCase() 
         : trimmedHandle.toLowerCase();
 
-      // 1. Check for unique handle
+      // 1. Check for unique handle in advertisers_accounts
       const q = query(
-        collection(db, "advertisers_data"), 
+        collection(db, "advertisers_accounts"), 
         where("handle", "==", cleanHandle)
       );
       const querySnapshot = await getDocs(q);
@@ -50,13 +51,14 @@ export default function SignupPage() {
         throw new Error("This handle is already taken. Please choose another.");
       }
 
-      // 2. Create advertiser document
-      await addDoc(collection(db, "advertisers_data"), {
+      // 2. Create advertiser account document
+      await addDoc(collection(db, "advertisers_accounts"), {
         handle: cleanHandle,
-        name: formData.name,
+        fullName: formData.fullName,
+        businessName: formData.businessName,
         email: formData.email,
         phone: formData.phone,
-        password: formData.password, // In a real app, use Firebase Auth & hashed passwords
+        password: formData.password,
         walletBalance: 0,
         status: "Active",
         createdAt: serverTimestamp(),
@@ -64,7 +66,7 @@ export default function SignupPage() {
 
       toast({
         title: "Registration Successful",
-        description: "Welcome to GloAds! Please log in to continue.",
+        description: "Your GloAds account has been created. Please log in.",
       });
       
       router.push("/login");
@@ -92,7 +94,7 @@ export default function SignupPage() {
 
       <Card className="w-full max-w-md bg-[#171717] border-[#333333] text-white shadow-2xl shadow-primary/5">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-2xl font-headline gold-gradient-text">Advertiser Sign Up</CardTitle>
+          <CardTitle className="text-2xl font-headline gold-gradient-text">Create Advertiser Account</CardTitle>
           <CardDescription className="text-white/40">Launch your brand on GloVerse today.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -104,7 +106,7 @@ export default function SignupPage() {
                 <Input
                   id="handle"
                   type="text"
-                  placeholder="@yourhandle"
+                  placeholder="@yourbrand"
                   value={formData.handle}
                   onChange={handleInputChange}
                   required
@@ -114,12 +116,28 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-white/60">Business / Full Name</Label>
+              <Label htmlFor="businessName" className="text-white/60">Business Name</Label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                <Input
+                  id="businessName"
+                  type="text"
+                  placeholder="GloVerse Media Group"
+                  value={formData.businessName}
+                  onChange={handleInputChange}
+                  required
+                  className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-11 pl-10"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fullName" className="text-white/60">Full Name</Label>
               <Input
-                id="name"
+                id="fullName"
                 type="text"
-                placeholder="GloVerse Media Group"
-                value={formData.name}
+                placeholder="John Doe"
+                value={formData.fullName}
                 onChange={handleInputChange}
                 required
                 className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-11"

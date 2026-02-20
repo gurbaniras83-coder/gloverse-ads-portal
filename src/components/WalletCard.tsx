@@ -15,20 +15,17 @@ import { db } from "@/lib/firebase";
 
 export function WalletCard() {
   const [balance, setBalance] = useState<number | null>(null);
-  const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
     const savedSession = localStorage.getItem("gloads_advertiser_session");
     if (savedSession) {
       const parsed = JSON.parse(savedSession);
-      setSession(parsed);
       
-      // Listen to specific advertiser's data in the new collection
-      const unsubscribe = onSnapshot(doc(db, "advertisers_data", parsed.uid), (doc) => {
+      // Listen to specific advertiser's data in advertisers_accounts
+      const unsubscribe = onSnapshot(doc(db, "advertisers_accounts", parsed.uid), (doc) => {
         if (doc.exists()) {
           setBalance(doc.data().walletBalance || 0);
         } else {
-          // Fallback to advertiser_stats if not in advertisers_data yet (legacy)
           setBalance(0);
         }
       });

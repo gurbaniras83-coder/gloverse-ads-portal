@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -22,8 +21,7 @@ export default function DepositPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [advertiserHandle, setAdvertiserHandle] = useState<string | null>(null);
-  const [advertiserId, setAdvertiserId] = useState<string | null>(null);
+  const [session, setSession] = useState<any>(null);
 
   const upiId = "7681917331@fam";
   const upiUrl = `upi://pay?pa=${upiId}&pn=GloAds&cu=INR`;
@@ -32,7 +30,7 @@ export default function DepositPage() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       const sessionStr = localStorage.getItem("gloads_advertiser_session");
       
-      if (!user && !sessionStr) {
+      if (!sessionStr) {
         toast({
           variant: "destructive",
           title: "Session Required",
@@ -42,17 +40,8 @@ export default function DepositPage() {
         return;
       }
 
-      if (sessionStr) {
-        const session = JSON.parse(sessionStr);
-        setAdvertiserHandle(session.handle);
-        setAdvertiserId(session.uid);
-        setIsLoading(false);
-      } else if (user) {
-        // Fallback for direct Firebase auth if session storage is cleared
-        setAdvertiserHandle(user.displayName || "advertiser");
-        setAdvertiserId(user.uid);
-        setIsLoading(false);
-      }
+      setSession(JSON.parse(sessionStr));
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, [router, toast]);
@@ -60,32 +49,13 @@ export default function DepositPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     
-    // 1. Double check session for the latest data
-    const sessionStr = localStorage.getItem("gloads_advertiser_session");
-    if (!sessionStr) {
+    if (!session?.uid) {
       toast({
         variant: "destructive",
         title: "Authentication Required",
         description: "Your session has expired. Please log in again.",
       });
       router.push("/login");
-      return;
-    }
-
-    const session = JSON.parse(sessionStr);
-    
-    // 2. Strict Data Capture
-    const finalAdvertiserId = session.uid;
-    const finalHandle = session.handle;
-    const finalName = session.displayName || session.name || "Unknown Business";
-    const finalEmail = session.email || "No Email Provided";
-
-    if (!finalAdvertiserId || finalAdvertiserId === "undefined") {
-      toast({
-        variant: "destructive",
-        title: "Invalid Session",
-        description: "Could not identify advertiser accurately. Please re-login.",
-      });
       return;
     }
 
@@ -96,16 +66,16 @@ export default function DepositPage() {
       const amount = Number(formData.get("amount"));
       const utr = formData.get("utr") as string;
 
-      // 3. Firestore Save with explicit identity fields
+      // Firestore Save with STRICT Identity pulling from session
       await addDoc(collection(db, "payment_requests"), {
         amount,
         transactionId: utr,
         status: "Pending",
         upiId: upiId,
-        advertiserId: finalAdvertiserId,
-        advertiserHandle: finalHandle.startsWith("@") ? finalHandle : `@${finalHandle}`,
-        advertiserName: finalName,
-        advertiserEmail: finalEmail,
+        advertiserId: session.uid,
+        advertiserHandle: session.handle.startsWith("@") ? session.handle : `@${session.handle}`,
+        businessName: session.businessName,
+        advertiserEmail: session.email,
         createdAt: serverTimestamp(),
       });
 
@@ -134,7 +104,7 @@ export default function DepositPage() {
     );
   }
 
-  const isIdentified = !!advertiserId && !!advertiserHandle;
+  const isIdentified = !!session?.uid;
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white pb-12">
@@ -165,12 +135,12 @@ export default function DepositPage() {
               <UserIcon size={20} />
             </div>
             <div>
-              <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Authenticated Advertiser</p>
-              <p className="text-sm font-medium">@{advertiserHandle?.replace('@', '')}</p>
+              <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Verified Account</p>
+              <p className="text-sm font-medium">{session?.businessName} (@{session?.handle})</p>
             </div>
           </div>
           <div className="bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/20 uppercase">
-            ID: {advertiserId?.substring(0, 8)}...
+            ACTIVE SESSION
           </div>
         </div>
 

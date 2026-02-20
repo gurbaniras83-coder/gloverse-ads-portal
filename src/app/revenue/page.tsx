@@ -65,8 +65,8 @@ export default function RevenuePage() {
         approvedAt: new Date(),
       });
 
-      // 2. Update advertiser walletBalance in advertisers_data collection
-      const adRef = doc(db, "advertisers_data", request.advertiserId);
+      // 2. Update advertiser walletBalance in advertisers_accounts
+      const adRef = doc(db, "advertisers_accounts", request.advertiserId);
       const adSnap = await getDoc(adRef);
 
       if (adSnap.exists()) {
@@ -74,18 +74,11 @@ export default function RevenuePage() {
           walletBalance: increment(request.amount),
           updatedAt: new Date()
         });
-      } else {
-        // Fallback for legacy stats if user isn't in advertisers_data yet
-        const statsRef = doc(db, "advertiser_stats", request.advertiserId);
-        await updateDoc(statsRef, {
-          balance: increment(request.amount),
-          updatedAt: new Date()
-        });
       }
 
       toast({
         title: "Payment Approved",
-        description: `₹${request.amount} has been added to @${request.advertiserHandle}'s wallet.`,
+        description: `₹${request.amount} has been added to ${request.businessName || request.advertiserHandle}'s wallet.`,
       });
     } catch (error: any) {
       toast({
@@ -159,8 +152,8 @@ export default function RevenuePage() {
                     <TableRow key={request.id} className="border-[#333333] hover:bg-white/5">
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-bold text-white">@{request.advertiserHandle || 'Unknown'}</span>
-                          <span className="text-[10px] text-white/30">{request.advertiserId}</span>
+                          <span className="font-bold text-white">{request.businessName || 'Unknown'}</span>
+                          <span className="text-[10px] text-white/30">{request.advertiserHandle}</span>
                         </div>
                       </TableCell>
                       <TableCell className="font-headline font-bold text-primary text-lg">

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Megaphone, Loader2, ArrowRight, User as UserIcon } from "lucide-react";
+import { Megaphone, Loader2, ArrowRight, User as UserIcon, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
@@ -22,9 +21,8 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if already logged in via localStorage and Firebase
     const session = localStorage.getItem("gloads_advertiser_session");
-    if (session && auth.currentUser) {
+    if (session) {
       router.push("/deposit");
     }
   }, [router]);
@@ -37,73 +35,64 @@ export default function LoginPage() {
       const trimmedHandle = handleInput.trim();
       const trimmedPassword = passwordInput.trim();
       
-      // Clean Handle: remove @ and lowercase
       const cleanHandle = trimmedHandle.startsWith("@") 
         ? trimmedHandle.substring(1).toLowerCase() 
         : trimmedHandle.toLowerCase();
       
-      console.log('Attempting login for handle:', cleanHandle);
-      
       let advertiserData = null;
 
-      // 1. Founder Bypass Check
+      // 1. Founder Bypass
       if (cleanHandle === "gloverse" && trimmedPassword === "waheguru786") {
-        console.log('Founder bypass triggered');
         advertiserData = {
           uid: "founder-admin",
           handle: "gloverse",
-          displayName: "GloVerse Founder"
+          businessName: "GloVerse Founder",
+          email: "admin@gloverse.com"
         };
       } else {
-        // 2. Search in advertisers_data collection
+        // 2. Search in advertisers_accounts collection
         const q = query(
-          collection(db, "advertisers_data"), 
+          collection(db, "advertisers_accounts"), 
           where("handle", "==", cleanHandle)
         );
         
         const querySnapshot = await getDocs(q);
         
         if (querySnapshot.empty) {
-          throw new Error(`Handle '${cleanHandle}' not found in our records.`);
+          throw new Error(`Handle '@${cleanHandle}' not found.`);
         }
 
         const adDoc = querySnapshot.docs[0];
         const adData = adDoc.data();
 
-        console.log('Input Password:', trimmedPassword);
-        console.log('DB Password:', adData.password);
-
         if (adData.password !== trimmedPassword) {
-          throw new Error("Invalid password. Please check and try again.");
+          throw new Error("Invalid password. Please try again.");
         }
 
         advertiserData = {
           uid: adDoc.id,
-          handle: adData.handle || cleanHandle,
-          displayName: adData.name || adData.handle || cleanHandle
+          handle: adData.handle,
+          businessName: adData.businessName || adData.fullName,
+          email: adData.email
         };
       }
 
-      // 3. Establish REAL Firebase Auth Session (Anonymously to avoid Auth tab management)
+      // 3. Firebase Auth for secure identification
       const userCredential = await signInAnonymously(auth);
-      
-      // Update Auth Profile so display name is available for payment requests
       await updateProfile(userCredential.user, {
         displayName: advertiserData.handle
       });
 
-      // 4. Save Session Metadata to localStorage for persistence
-      const sessionData = {
+      // 4. Persistence Session
+      localStorage.setItem("gloads_advertiser_session", JSON.stringify({
         ...advertiserData,
         firebaseUid: userCredential.user.uid,
         loggedInAt: new Date().toISOString()
-      };
-      
-      localStorage.setItem("gloads_advertiser_session", JSON.stringify(sessionData));
+      }));
 
       toast({
         title: "Login Successful",
-        description: `Welcome back, @${advertiserData.handle}!`,
+        description: `Welcome, ${advertiserData.businessName}!`,
       });
       
       router.push("/deposit");
@@ -133,7 +122,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md bg-[#171717] border-[#333333] text-white shadow-2xl shadow-primary/5">
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-2xl font-headline gold-gradient-text">Advertiser Login</CardTitle>
-          <CardDescription className="text-white/40">Enter your GloVerse handle and password.</CardDescription>
+          <CardDescription className="text-white/40">Access your advertiser account.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">
@@ -144,7 +133,7 @@ export default function LoginPage() {
                 <Input
                   id="handle"
                   type="text"
-                  placeholder="@yourhandle"
+                  placeholder="@yourbrand"
                   value={handleInput}
                   onChange={(e) => setHandleInput(e.target.value)}
                   required
@@ -153,18 +142,19 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-white/60">Password</Label>
+              <Label htmlFor="password" colonial-className="text-white/60">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  required
+                  className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12 pl-10"
+                />
               </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                required
-                className="bg-[#0F0F0F] border-[#333333] text-white focus:border-primary h-12"
-              />
             </div>
             <Button
               type="submit"
