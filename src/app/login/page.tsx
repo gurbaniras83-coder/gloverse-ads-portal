@@ -65,6 +65,10 @@ export default function LoginPage() {
         const adDoc = querySnapshot.docs[0];
         const adData = adDoc.data();
 
+        // Debug Logs
+        console.log('Input:', trimmedPassword);
+        console.log('DB:', adData.password);
+
         if (adData.password !== trimmedPassword) {
           throw new Error("Invalid password. Please try again.");
         }
@@ -77,7 +81,7 @@ export default function LoginPage() {
         };
       }
 
-      // 3. Firebase Auth for secure identification
+      // 3. Firebase Auth for secure identification (Anonymous)
       const userCredential = await signInAnonymously(auth);
       await updateProfile(userCredential.user, {
         displayName: advertiserData.handle
@@ -142,7 +146,12 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-white/60">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-white/60">Password</Label>
+                <Link href="/forgot-password" size="sm" className="text-xs text-primary/60 hover:text-primary hover:underline">
+                  Forgot Password?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={16} />
                 <Input

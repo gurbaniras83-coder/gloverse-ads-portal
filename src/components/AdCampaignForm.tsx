@@ -67,14 +67,19 @@ export function AdCampaignForm() {
   const estimatedMin = Math.floor(budget * 9);
   const estimatedMax = Math.floor(budget * 11);
 
-  // Fetch Session & Wallet Balance
+  // Fetch Session & Wallet Balance from advertisers_accounts
   useEffect(() => {
     const sessionStr = localStorage.getItem("gloads_advertiser_session");
     if (sessionStr) {
       const session = JSON.parse(sessionStr);
       setAdvertiserId(session.uid);
 
-      const unsubscribe = onSnapshot(doc(db, "advertisers_data", session.uid), (doc) => {
+      if (session.uid === "founder-admin") {
+        setWalletBalance(999999); // Founder has unlimited balance
+        return;
+      }
+
+      const unsubscribe = onSnapshot(doc(db, "advertisers_accounts", session.uid), (doc) => {
         if (doc.exists()) {
           setWalletBalance(doc.data().walletBalance || 0);
         } else {
@@ -205,7 +210,7 @@ export function AdCampaignForm() {
       />
       
       <form onSubmit={onSubmit} className="space-y-8">
-        {/* Ad Details Section */}
+        {/* Ad Content */}
         <div className="bg-[#171717] p-8 rounded-xl border border-[#333333] space-y-6">
           <div className="flex items-center gap-3 mb-2">
             <Megaphone className="text-primary" size={20} />
@@ -405,16 +410,15 @@ export function AdCampaignForm() {
         </div>
       </form>
 
-      {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
         <DialogContent className="bg-[#171717] border-[#333333] text-white max-w-md">
           <DialogHeader className="flex flex-col items-center justify-center text-center space-y-4">
             <div className="bg-primary/20 p-4 rounded-full">
               <PartyPopper className="text-primary" size={48} />
             </div>
-            <DialogTitle className="text-2xl font-headline gold-gradient-text">Campaign Sent for Founder's Approval!</DialogTitle>
+            <DialogTitle className="text-2xl font-headline gold-gradient-text">Campaign Sent for Approval!</DialogTitle>
             <DialogDescription className="text-white/60 text-base">
-              Your campaign has been successfully submitted and is currently in <span className="text-primary font-bold">Pending</span> review. You'll be notified once it goes live.
+              Your campaign has been successfully submitted and is currently in <span className="text-primary font-bold">Pending</span> review.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-center mt-6">
