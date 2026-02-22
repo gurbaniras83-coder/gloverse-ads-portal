@@ -26,13 +26,16 @@ export function WalletCard() {
         return;
       }
 
-      // Listen to specific advertiser's data in advertisers_accounts
+      // Live listener for real-time balance updates
       const unsubscribe = onSnapshot(doc(db, "advertisers_accounts", parsed.uid), (doc) => {
         if (doc.exists()) {
           setBalance(doc.data().walletBalance || 0);
         } else {
           setBalance(0);
         }
+      }, (error) => {
+        console.error("Wallet listener error:", error);
+        setBalance(0);
       });
       return () => unsubscribe();
     } else {
@@ -66,7 +69,7 @@ export function WalletCard() {
           ) : (
             <>
               <span className="text-4xl font-headline font-bold text-white tracking-tighter">
-                ₹{balance.toLocaleString()}
+                ₹{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
               <span className="text-white/40 ml-2 text-sm">INR</span>
             </>

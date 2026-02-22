@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, orderBy, onSnapshot, where } from "firebase/firestore";
+import { collection, query, onSnapshot, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -45,19 +45,27 @@ export function CampaignList() {
   useEffect(() => {
     if (!advertiserId) return;
 
-    // Filter by the logged-in advertiser
+    // Simplified query to avoid Index requirements
     const q = query(
       collection(db, "ad_campaigns"), 
-      where("advertiserId", "==", advertiserId),
-      orderBy("createdAt", "desc")
+      where("advertiserId", "==", advertiserId)
     );
     
+    // Real-time listener using onSnapshot
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Campaign[];
-      setCampaigns(docs);
+
+      // Sort manually in JS to bypass Index errors
+      const sortedDocs = docs.sort((a, b) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(0);
+        const dateB = b.createdAt?.toDate?.() || new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setCampaigns(sortedDocs);
       setLoading(false);
     }, (error) => {
       console.error("Firestore error:", error);
@@ -161,7 +169,7 @@ export function CampaignList() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-col items-end">
-                    <span className="font-headline font-bold text-white text-sm">₹{spent.toFixed(0)}</span>
+                    <span className="font-headline font-bold text-white text-sm">₹{spent.toFixed(2)}</span>
                     <span className="text-[10px] text-white/20 uppercase">of ₹{campaign.budget.toLocaleString()}</span>
                   </div>
                 </TableCell>
